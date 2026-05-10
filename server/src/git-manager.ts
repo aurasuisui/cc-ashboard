@@ -21,6 +21,7 @@ export interface GitManager {
   listWorktrees: (repoPath: string) => string[];
   removeWorktree: (worktreePath: string) => void;
   mergeToMain: (repoPath: string, branchName: string, mainBranch: string) => string;
+  getHeadHash: (repoPath: string) => string;
   getDiff: (repoPath: string, branchName: string, mainBranch: string) => string;
 }
 
@@ -58,6 +59,14 @@ export const git: GitManager = {
       { encoding: 'utf-8', timeout: 30000 }
     );
     return output;
+  },
+
+  getHeadHash(repoPath: string): string {
+    validatePath(repoPath, 'repoPath');
+    return execSync(`git -C "${repoPath}" rev-parse HEAD`, {
+      encoding: 'utf-8',
+      timeout: 5000,
+    }).trim();
   },
 
   getDiff(repoPath: string, branchName: string, mainBranch: string): string {

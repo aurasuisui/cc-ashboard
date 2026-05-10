@@ -122,9 +122,10 @@ export function createTaskRoutes(pm: ProcessManager): Router {
 
     try {
       git.mergeToMain(task.repoPath, task.branchName, task.mainBranch);
+      const commitHash = git.getHeadHash(task.repoPath);
       git.removeWorktree(task.worktreePath);
       db.prepare('UPDATE tasks SET status = ?, commitHash = ? WHERE id = ?')
-        .run('merged', task.commitHash || 'merged', task.id);
+        .run('merged', commitHash, task.id);
       if (task.assignedTo) {
         db.prepare('UPDATE workers SET status = ?, currentTaskId = ? WHERE id = ?')
           .run('idle', null, task.assignedTo);
