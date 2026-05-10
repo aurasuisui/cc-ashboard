@@ -71,4 +71,11 @@ export class WSHub {
       }
     }
   }
+
+  close(): void {
+    for (const client of this.clients) {
+      client.ws.terminate();
+    }
+    this.wss.close();
+  }
 }

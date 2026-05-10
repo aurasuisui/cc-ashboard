@@ -20,7 +20,7 @@ app.use(express.json());
 
 const httpServer = createServer(app);
 const pm = new ProcessManager();
-new WSHub(httpServer, pm);
+const wsHub = new WSHub(httpServer, pm);
 
 app.use('/api/projects', projectRoutes);
 app.use('/api/tasks', createTaskRoutes(pm));
@@ -44,16 +44,30 @@ httpServer.listen(PORT, () => {
   console.log(`CC Dashboard running at http://localhost:${PORT}`);
 });
 
-function shutdown() {
-  console.log('Shutting down...');
+let shuttingDown = false;
+
+function shutdown(signal: string) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`Shutting down (${signal})...`);
+
+  const forceExit = setTimeout(() => {
+    console.error('Forced shutdown after timeout');
+    process.exit(1);
+  }, 10_000);
+  forceExit.unref();
+
   for (const taskId of pm.getRunning()) {
-    pm.kill(taskId);
+    try { pm.kill(taskId); } catch { /* process already dead */ }
   }
+
+  wsHub.close();
   httpServer.close(() => {
+    clearTimeout(forceExit);
     console.log('Server closed');
     process.exit(0);
   });
 }
 
-process.on('SIGTERM', shutdown);
-process.on('SIGINT', shutdown);
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
