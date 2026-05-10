@@ -20,12 +20,15 @@ interface AppState {
 
 export const useStore = create<AppState>((set) => ({
   projects: [],
-  currentProjectId: null,
+  currentProjectId: localStorage.getItem('cc-dashboard-currentProjectId') || null,
   tasks: [],
   workers: [],
 
   setProjects: (projects) => set({ projects }),
-  setCurrentProject: (id) => set({ currentProjectId: id }),
+  setCurrentProject: (id) => {
+    localStorage.setItem('cc-dashboard-currentProjectId', id);
+    set({ currentProjectId: id });
+  },
   setTasks: (tasks) => set({ tasks }),
   updateTask: (task) => set((s) => ({
     tasks: s.tasks.map((t) => (t.id === task.id ? task : t)),

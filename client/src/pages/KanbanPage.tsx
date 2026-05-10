@@ -24,6 +24,10 @@ export default function KanbanPage() {
         useStore.getState().setProjects(ps);
         if (ps.length > 0 && !currentProjectId) {
           setCurrentProject(ps[0].id);
+        } else if (ps.length > 0 && currentProjectId) {
+          // Verify persisted project still exists
+          const exists = ps.find(p => p.id === currentProjectId);
+          if (!exists) setCurrentProject(ps[0].id);
         }
         setError(null);
       } catch (err) {
