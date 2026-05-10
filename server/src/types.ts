@@ -1,3 +1,7 @@
+// Shared type definitions -- currently used as reference documentation.
+// Server routes use these shapes via better-sqlite3 return types (cast as any).
+// Future: integrate with Zod schemas for runtime validation.
+
 export type TaskStatus = 'todo' | 'analyzing' | 'in-progress' | 'review' | 'merged';
 export type WorkerStatus = 'idle' | 'busy' | 'error';
 export type Priority = 'low' | 'normal' | 'high';
@@ -50,6 +54,6 @@ export interface ChatMessage {
   role: 'pm' | 'user';
   pmType: 'analyzer' | 'dispatcher' | 'integrator';
   content: string;
-  tasks?: Task[];          // attached task cards from PM
+  tasksJson: string | null;  // JSON string of attached task IDs/cards from PM
   createdAt: string;
 }
