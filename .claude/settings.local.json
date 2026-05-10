@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:www.vibekanban.com)",
+      "PowerShell(Get-ChildItem *)",
+      "PowerShell(Test-Path *)",
+      "PowerShell(npm cache *)",
+      "Bash(C:/Users/aurasui/.claude/plugins/cache/claude-plugins-official/superpowers/5.1.0/skills/brainstorming/scripts/start-server.sh *)",
+      "WebFetch(domain:claude.com)",
+      "Bash(npm install *)",
+      "Bash(git init *)",
+      "Bash(git -C \"C:\\\\Users\\\\aurasui\\\\Desktop\\\\MCPSkillinstall\" add -A)",
+      "Bash(git -C \"C:\\\\Users\\\\aurasui\\\\Desktop\\\\MCPSkillinstall\" commit -m \"chore: initialize monorepo root\")"
+    ]
+  }
+}
