@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { v4 as uuid } from 'uuid';
 import db from '../db.js';
+import { requireField, optionalInt, optionalString } from './validation.js';
 
 const router = Router();
 
@@ -16,21 +17,31 @@ router.get('/:id', (req: Request, res: Response) => {
 });
 
 router.post('/', (req: Request, res: Response) => {
-  const { name, sourceType, sourcePath, repoPath, mainBranch, workerCount } = req.body;
-  const id = uuid();
+  try {
+    const name = requireField(req.body, 'name', 'Project name');
+    const sourceType = optionalString(req.body, 'sourceType') || 'doc';
+    const sourcePath = optionalString(req.body, 'sourcePath') || '';
+    const repoPath = optionalString(req.body, 'repoPath') || '';
+    const mainBranch = optionalString(req.body, 'mainBranch') || 'main';
+    const workerCount = optionalInt(req.body, 'workerCount', 1, 10) ?? 2;
 
-  db.prepare(`INSERT INTO projects (id, name, sourceType, sourcePath, repoPath, mainBranch, workerCount)
-              VALUES (?, ?, ?, ?, ?, ?, ?)`)
-    .run(id, name, sourceType || 'doc', sourcePath || '', repoPath || '', mainBranch || 'main', workerCount || 2);
+    const id = uuid();
 
-  // Create workers for this project
-  for (let i = 0; i < (workerCount || 2); i++) {
-    db.prepare('INSERT INTO workers (id, projectId, name) VALUES (?, ?, ?)')
-      .run(uuid(), id, `Worker-${i + 1}`);
+    db.prepare(`INSERT INTO projects (id, name, sourceType, sourcePath, repoPath, mainBranch, workerCount)
+                VALUES (?, ?, ?, ?, ?, ?, ?)`)
+      .run(id, name, sourceType, sourcePath, repoPath, mainBranch, workerCount);
+
+    // Create workers for this project
+    for (let i = 0; i < workerCount; i++) {
+      db.prepare('INSERT INTO workers (id, projectId, name) VALUES (?, ?, ?)')
+        .run(uuid(), id, `Worker-${i + 1}`);
+    }
+
+    const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(id);
+    res.status(201).json(project);
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
   }
-
-  const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(id);
-  res.status(201).json(project);
 });
 
 export default router;

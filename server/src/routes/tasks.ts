@@ -3,6 +3,7 @@ import { v4 as uuid } from 'uuid';
 import db from '../db.js';
 import { git } from '../git-manager.js';
 import { ProcessManager } from '../process-manager.js';
+import { requireField, optionalString, optionalEnum, VALID_STATUSES, VALID_PRIORITIES } from './validation.js';
 
 export function createTaskRoutes(pm: ProcessManager): Router {
   const router = Router();
@@ -13,48 +14,66 @@ export function createTaskRoutes(pm: ProcessManager): Router {
   });
 
   router.post('/', (req: Request, res: Response) => {
-    const { projectId, title, description, acceptanceCriteria, priority, estimatedHours, dependencies } = req.body;
-    const id = uuid();
+    try {
+      const projectId = requireField(req.body, 'projectId', 'Project ID');
+      const title = requireField(req.body, 'title', 'Task title');
+      const description = optionalString(req.body, 'description') || '';
+      const acceptanceCriteria = optionalString(req.body, 'acceptanceCriteria') || '';
+      const priority = optionalEnum(req.body, 'priority', VALID_PRIORITIES, 'Priority') || 'normal';
+      const estimatedHours = Number(req.body.estimatedHours) || 1;
+      const dependencies = req.body.dependencies || [];
+      const id = uuid();
 
-    db.prepare(`INSERT INTO tasks (id, projectId, title, description, acceptanceCriteria, priority, estimatedHours, dependencies)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
-      .run(id, projectId, title, description || '', acceptanceCriteria || '', priority || 'normal', estimatedHours || 1, JSON.stringify(dependencies || []));
+      db.prepare(`INSERT INTO tasks (id, projectId, title, description, acceptanceCriteria, priority, estimatedHours, dependencies)
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+        .run(id, projectId, title, description, acceptanceCriteria, priority, estimatedHours, JSON.stringify(dependencies));
 
-    const task = db.prepare('SELECT * FROM tasks WHERE id = ?').get(id);
-    res.status(201).json(task);
+      const task = db.prepare('SELECT * FROM tasks WHERE id = ?').get(id);
+      res.status(201).json(task);
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
   });
 
   router.patch('/:id', (req: Request, res: Response) => {
-    const { status, assignedTo, title, description, acceptanceCriteria, priority, estimatedHours, analysisNotes, reviewNotes } = req.body;
+    try {
+      const { assignedTo, title, description, acceptanceCriteria, estimatedHours, analysisNotes, reviewNotes } = req.body;
 
-    const task = db.prepare('SELECT * FROM tasks WHERE id = ?').get(req.params.id) as any;
-    if (!task) return res.status(404).json({ error: 'Task not found' });
+      // Validate optional enum fields
+      const status = optionalEnum(req.body, 'status', VALID_STATUSES, 'Status');
+      const priority = optionalEnum(req.body, 'priority', VALID_PRIORITIES, 'Priority');
 
-    db.prepare(`UPDATE tasks SET
-      status = ?, assignedTo = ?, title = ?, description = ?,
-      acceptanceCriteria = ?, priority = ?, estimatedHours = ?,
-      analysisNotes = ?, reviewNotes = ?
-      WHERE id = ?`)
-      .run(
-        status || task.status,
-        assignedTo !== undefined ? assignedTo : task.assignedTo,
-        title || task.title,
-        description || task.description,
-        acceptanceCriteria || task.acceptanceCriteria,
-        priority || task.priority,
-        estimatedHours || task.estimatedHours,
-        analysisNotes || task.analysisNotes,
-        reviewNotes || task.reviewNotes,
-        req.params.id
-      );
+      const task = db.prepare('SELECT * FROM tasks WHERE id = ?').get(req.params.id) as any;
+      if (!task) return res.status(404).json({ error: 'Task not found' });
 
-    if (assignedTo) {
-      db.prepare('UPDATE workers SET status = ?, currentTaskId = ? WHERE id = ?')
-        .run('busy', req.params.id, assignedTo);
+      db.prepare(`UPDATE tasks SET
+        status = ?, assignedTo = ?, title = ?, description = ?,
+        acceptanceCriteria = ?, priority = ?, estimatedHours = ?,
+        analysisNotes = ?, reviewNotes = ?
+        WHERE id = ?`)
+        .run(
+          status || task.status,
+          assignedTo !== undefined ? assignedTo : task.assignedTo,
+          title || task.title,
+          description || task.description,
+          acceptanceCriteria || task.acceptanceCriteria,
+          priority || task.priority,
+          estimatedHours || task.estimatedHours,
+          analysisNotes || task.analysisNotes,
+          reviewNotes || task.reviewNotes,
+          req.params.id
+        );
+
+      if (assignedTo) {
+        db.prepare('UPDATE workers SET status = ?, currentTaskId = ? WHERE id = ?')
+          .run('busy', req.params.id, assignedTo);
+      }
+
+      const updated = db.prepare('SELECT * FROM tasks WHERE id = ?').get(req.params.id);
+      res.json(updated);
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
     }
-
-    const updated = db.prepare('SELECT * FROM tasks WHERE id = ?').get(req.params.id);
-    res.json(updated);
   });
 
   router.post('/:id/start', (req: Request, res: Response) => {

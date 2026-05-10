@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import db from '../db.js';
+import { requireField } from './validation.js';
 
 const router = Router();
 
@@ -15,10 +16,14 @@ router.get('/:id', (req: Request, res: Response) => {
 });
 
 router.patch('/:id', (req: Request, res: Response) => {
-  const { name } = req.body;
-  db.prepare('UPDATE workers SET name = ? WHERE id = ?').run(name, req.params.id);
-  const updated = db.prepare('SELECT * FROM workers WHERE id = ?').get(req.params.id);
-  res.json(updated);
+  try {
+    const name = requireField(req.body, 'name', 'Worker name');
+    db.prepare('UPDATE workers SET name = ? WHERE id = ?').run(name, req.params.id);
+    const updated = db.prepare('SELECT * FROM workers WHERE id = ?').get(req.params.id);
+    res.json(updated);
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
 });
 
 export default router;
