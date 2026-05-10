@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { v4 as uuid } from 'uuid';
 import db from '../db.js';
-import { requireField, optionalInt, optionalString } from './validation.js';
+import { requireField, optionalInt, optionalString, optionalEnum } from './validation.js';
 
 const router = Router();
 
@@ -19,7 +19,7 @@ router.get('/:id', (req: Request, res: Response) => {
 router.post('/', (req: Request, res: Response) => {
   try {
     const name = requireField(req.body, 'name', 'Project name');
-    const sourceType = optionalString(req.body, 'sourceType') || 'doc';
+    const sourceType = optionalEnum(req.body, 'sourceType', ['doc', 'codebase'] as const, 'Source type') || 'doc';
     const sourcePath = optionalString(req.body, 'sourcePath') || '';
     const repoPath = optionalString(req.body, 'repoPath') || '';
     const mainBranch = optionalString(req.body, 'mainBranch') || 'main';
