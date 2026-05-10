@@ -31,6 +31,7 @@ export interface Task {
   commitHash: string | null;
   analysisNotes: string;
   reviewNotes: string;
+  logLines?: string[];
   createdAt: string;
 }
 

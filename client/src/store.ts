@@ -36,7 +36,7 @@ export const useStore = create<AppState>((set) => ({
   })),
   addLog: (taskId, text) => set((s) => ({
     tasks: s.tasks.map((t) =>
-      t.id === taskId ? { ...t, reviewNotes: (t as any).reviewNotes + text } : t
+      t.id === taskId ? { ...t, logLines: [...(t.logLines || []), text] } : t
     ),
   })),
 }));
