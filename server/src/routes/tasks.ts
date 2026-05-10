@@ -95,18 +95,23 @@ export function createTaskRoutes(pm: ProcessManager): Router {
     if (!task) return res.status(404).json({ error: 'Task not found' });
 
     const branchName = `feature/${task.id.slice(0, 8)}-${task.title.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}`;
-    const worktreePath = git.createWorktree(task.repoPath, branchName, task.id);
 
-    db.prepare('UPDATE tasks SET worktreePath = ?, branchName = ?, status = ? WHERE id = ?')
-      .run(worktreePath, branchName, 'in-progress', task.id);
+    try {
+      const worktreePath = git.createWorktree(task.repoPath, branchName, task.id);
 
-    if (task.assignedTo) {
-      const prompt = `任务: ${task.title}\n描述: ${task.description}\n验收标准: ${task.acceptanceCriteria}\n\n请在当前工作目录中实现以上任务。完成后报告结果。`;
-      pm.spawn(task.id, task.assignedTo, worktreePath, prompt);
+      db.prepare('UPDATE tasks SET worktreePath = ?, branchName = ?, status = ? WHERE id = ?')
+        .run(worktreePath, branchName, 'in-progress', task.id);
+
+      if (task.assignedTo) {
+        const prompt = `任务: ${task.title}\n描述: ${task.description}\n验收标准: ${task.acceptanceCriteria}\n\n请在当前工作目录中实现以上任务。完成后报告结果。`;
+        pm.spawn(task.id, task.assignedTo, worktreePath, prompt);
+      }
+
+      const updated = db.prepare('SELECT * FROM tasks WHERE id = ?').get(req.params.id);
+      res.json(updated);
+    } catch (err) {
+      return res.status(500).json({ error: `Git operation failed: ${(err as Error).message}` });
     }
-
-    const updated = db.prepare('SELECT * FROM tasks WHERE id = ?').get(req.params.id);
-    res.json(updated);
   });
 
   router.post('/:id/merge', (req: Request, res: Response) => {

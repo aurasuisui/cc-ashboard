@@ -26,6 +26,12 @@ app.use('/api/projects', projectRoutes);
 app.use('/api/tasks', createTaskRoutes(pm));
 app.use('/api/workers', workerRoutes);
 
+// Global error handler
+app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error('Unhandled error:', err.message);
+  res.status(400).json({ error: err.message || 'Internal server error' });
+});
+
 // Serve client build in production
 const clientDist = path.join(__dirname, '..', '..', 'client', 'dist');
 app.use(express.static(clientDist));
