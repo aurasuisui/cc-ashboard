@@ -8,7 +8,11 @@ interface Props {
 
 export default function ChatBubble({ message }: Props) {
   const isPM = message.role === 'pm';
-  const attachedTasks: Task[] = message.tasksJson ? JSON.parse(message.tasksJson) : [];
+  const attachedTasks: Task[] = (() => {
+    if (!message.tasksJson) return [];
+    try { return JSON.parse(message.tasksJson); }
+    catch { return []; }
+  })();
 
   return (
     <div style={{
