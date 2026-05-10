@@ -1,55 +1,95 @@
 // client/src/pages/PMChatPage.tsx
 import { useState, useRef, useEffect } from 'react';
 import { useStore } from '../store';
+import { api } from '../api';
 import ChatBubble from '../components/ChatMessage';
 import type { ChatMessage } from '../types';
 
+const WELCOME_MSG: ChatMessage = {
+  id: 'welcome',
+  projectId: '',
+  role: 'pm',
+  pmType: 'analyzer',
+  content: '你好！我是需求分析 PM。请告诉我你想要开发的项目，或者提供 PRD 文档路径和代码库路径，我会帮你分析需求并拆解任务。',
+  tasksJson: null,
+  createdAt: new Date().toISOString(),
+};
+
 export default function PMChatPage() {
   const { currentProjectId } = useStore();
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: 'welcome',
-      projectId: '',
-      role: 'pm',
-      pmType: 'analyzer',
-      content: '你好！我是需求分析 PM。请告诉我你想要开发的项目，或者提供 PRD 文档路径和代码库路径，我会帮你分析需求并拆解任务。',
-      createdAt: new Date().toISOString(),
-    },
-  ]);
+  const [messages, setMessages] = useState<ChatMessage[]>([WELCOME_MSG]);
   const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
+  // Scroll to bottom when messages change
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const handleSend = () => {
-    if (!input.trim()) return;
+  // Load messages from API on mount / project change
+  useEffect(() => {
+    if (!currentProjectId) return;
 
-    const userMsg: ChatMessage = {
-      id: Date.now().toString(),
-      projectId: currentProjectId || '',
+    setLoading(true);
+    setError(null);
+    api.getMessages(currentProjectId)
+      .then((msgs) => {
+        if (msgs.length > 0) {
+          setMessages(msgs);
+        } else {
+          setMessages([WELCOME_MSG]);
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to load messages:', err);
+        setError(err.message || '加载消息失败');
+      })
+      .finally(() => setLoading(false));
+  }, [currentProjectId]);
+
+  const handleSend = () => {
+    if (!input.trim() || !currentProjectId) return;
+
+    const payload = {
+      projectId: currentProjectId,
       role: 'user',
       pmType: 'analyzer',
       content: input,
+      tasksJson: null,
+    };
+
+    const tempUserMsg: ChatMessage = {
+      id: Date.now().toString(),
+      projectId: currentProjectId,
+      role: 'user',
+      pmType: 'analyzer',
+      content: input,
+      tasksJson: null,
       createdAt: new Date().toISOString(),
     };
 
-    setMessages((prev) => [...prev, userMsg]);
+    setMessages((prev) => [...prev, tempUserMsg]);
     setInput('');
 
-    // Simulate PM response (MVP: the PM is a CC process that will be connected later)
-    setTimeout(() => {
-      const pmReply: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        projectId: currentProjectId || '',
-        role: 'pm',
-        pmType: 'analyzer',
-        content: `收到。我正在分析你的需求...后续版本会接入 Claude Code PM 进行实时对话和任务拆解。目前你可以通过看板手动管理任务卡片。`,
-        createdAt: new Date().toISOString(),
-      };
-      setMessages((prev) => [...prev, pmReply]);
-    }, 1000);
+    api.sendMessage(payload)
+      .then((msg) => {
+        setMessages((prev) => [...prev, msg]);
+      })
+      .catch((err) => {
+        console.error('Failed to send message:', err);
+        const errorMsg: ChatMessage = {
+          id: (Date.now() + 1).toString(),
+          projectId: currentProjectId,
+          role: 'pm',
+          pmType: 'analyzer',
+          content: `发送失败：${err.message || '未知错误'}`,
+          tasksJson: null,
+          createdAt: new Date().toISOString(),
+        };
+        setMessages((prev) => [...prev, errorMsg]);
+      });
   };
 
   return (
@@ -76,6 +116,16 @@ export default function PMChatPage() {
         padding: '20px 24px',
         background: 'var(--bg-page)',
       }}>
+        {loading && (
+          <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)', fontSize: '13px' }}>
+            加载中...
+          </div>
+        )}
+        {error && (
+          <div style={{ textAlign: 'center', padding: '20px', color: 'var(--danger)', fontSize: '13px' }}>
+            {error}
+          </div>
+        )}
         {messages.map((msg) => (
           <ChatBubble key={msg.id} message={msg} />
         ))}
@@ -93,6 +143,7 @@ export default function PMChatPage() {
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleSend()}
           placeholder="输入你的需求描述..."
+          disabled={!currentProjectId}
           style={{
             flex: 1,
             padding: '10px 16px',
@@ -104,7 +155,7 @@ export default function PMChatPage() {
             outline: 'none',
           }}
         />
-        <button onClick={handleSend} style={{
+        <button onClick={handleSend} disabled={!currentProjectId} style={{
           background: 'var(--accent)',
           color: '#fff',
           border: 'none',

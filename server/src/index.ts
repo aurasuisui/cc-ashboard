@@ -7,6 +7,7 @@ import { WSHub } from './ws-hub.js';
 import projectRoutes from './routes/projects.js';
 import { createTaskRoutes } from './routes/tasks.js';
 import workerRoutes from './routes/workers.js';
+import messagesRoutes from './routes/messages.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -29,6 +30,7 @@ const wsHub = new WSHub(httpServer, pm);
 app.use('/api/projects', projectRoutes);
 app.use('/api/tasks', createTaskRoutes(pm));
 app.use('/api/workers', workerRoutes);
+app.use('/api/messages', messagesRoutes);
 
 // Global error handler
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

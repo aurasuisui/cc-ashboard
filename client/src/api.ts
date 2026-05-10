@@ -27,4 +27,7 @@ export const api = {
 
   getWorkers: (projectId: string) => request<any[]>(`/workers?project=${projectId}`),
   updateWorker: (id: string, data: any) => request<any>(`/workers/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+
+  getMessages: (projectId: string) => request<any[]>(`/messages?projectId=${projectId}`),
+  sendMessage: (data: any) => request<any>('/messages', { method: 'POST', body: JSON.stringify(data) }),
 };
