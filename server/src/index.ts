@@ -15,7 +15,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 initDB();
 
 const app = express();
-app.use(cors());
+app.use(cors({
+  origin: process.env.NODE_ENV === 'production'
+    ? false
+    : ['http://localhost:5173', 'http://localhost:3000'],
+}));
 app.use(express.json());
 
 const httpServer = createServer(app);
