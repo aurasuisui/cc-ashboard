@@ -29,7 +29,7 @@ app.use('/api/workers', workerRoutes);
 // Global error handler
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error('Unhandled error:', err.message);
-  res.status(400).json({ error: err.message || 'Internal server error' });
+  res.status(500).json({ error: err.message || 'Internal server error' });
 });
 
 // Serve client build in production
