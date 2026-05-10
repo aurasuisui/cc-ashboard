@@ -77,9 +77,17 @@ export function createTaskRoutes(pm: ProcessManager): Router {
           req.params.id
         );
 
-      if (assignedTo) {
-        db.prepare('UPDATE workers SET status = ?, currentTaskId = ? WHERE id = ?')
-          .run('busy', req.params.id, assignedTo);
+      if (assignedTo !== undefined && assignedTo !== task.assignedTo) {
+        // Clear previous worker
+        if (task.assignedTo) {
+          db.prepare('UPDATE workers SET status = ?, currentTaskId = ? WHERE id = ?')
+            .run('idle', null, task.assignedTo);
+        }
+        // Set new worker
+        if (assignedTo) {
+          db.prepare('UPDATE workers SET status = ?, currentTaskId = ? WHERE id = ?')
+            .run('busy', req.params.id, assignedTo);
+        }
       }
 
       const updated = db.prepare('SELECT * FROM tasks WHERE id = ?').get(req.params.id);
