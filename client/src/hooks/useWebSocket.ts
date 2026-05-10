@@ -6,7 +6,6 @@ export function useWebSocket(projectId: string | null) {
   const wsRef = useRef<WebSocket | null>(null);
   const updateWorker = useStore((s) => s.updateWorker);
   const addLog = useStore((s) => s.addLog);
-  const updateTask = useStore((s) => s.updateTask);
 
   useEffect(() => {
     if (!projectId) return;
@@ -24,7 +23,7 @@ export function useWebSocket(projectId: string | null) {
             break;
           case 'worker-closed':
             if (msg.exitCode === 0) {
-              updateTask({ status: 'review', id: msg.taskId } as any);
+              useStore.getState().setTaskStatus(msg.taskId, 'review');
             }
             break;
         }

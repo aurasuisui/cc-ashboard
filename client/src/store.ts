@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Project, Task, Worker } from './types';
+import type { Project, Task, TaskStatus, Worker } from './types';
 
 interface AppState {
   projects: Project[];
@@ -11,6 +11,7 @@ interface AppState {
   setCurrentProject: (id: string) => void;
   setTasks: (tasks: Task[]) => void;
   updateTask: (task: Task) => void;
+  setTaskStatus: (taskId: string, status: TaskStatus) => void;
   removeTask: (id: string) => void;
   setWorkers: (workers: Worker[]) => void;
   updateWorker: (worker: Worker) => void;
@@ -28,6 +29,11 @@ export const useStore = create<AppState>((set) => ({
   setTasks: (tasks) => set({ tasks }),
   updateTask: (task) => set((s) => ({
     tasks: s.tasks.map((t) => (t.id === task.id ? task : t)),
+  })),
+  setTaskStatus: (taskId, status) => set((s) => ({
+    tasks: s.tasks.map((t) =>
+      t.id === taskId ? { ...t, status } : t
+    ),
   })),
   removeTask: (id) => set((s) => ({ tasks: s.tasks.filter((t) => t.id !== id) })),
   setWorkers: (workers) => set({ workers }),
