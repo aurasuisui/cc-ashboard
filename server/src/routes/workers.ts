@@ -17,6 +17,9 @@ router.get('/:id', (req: Request, res: Response) => {
 
 router.patch('/:id', (req: Request, res: Response) => {
   try {
+    const worker = db.prepare('SELECT * FROM workers WHERE id = ?').get(req.params.id);
+    if (!worker) return res.status(404).json({ error: 'Worker not found' });
+
     const name = requireField(req.body, 'name', 'Worker name');
     db.prepare('UPDATE workers SET name = ? WHERE id = ?').run(name, req.params.id);
     const updated = db.prepare('SELECT * FROM workers WHERE id = ?').get(req.params.id);

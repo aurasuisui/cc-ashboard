@@ -3,7 +3,7 @@ import { v4 as uuid } from 'uuid';
 import db from '../db.js';
 import { git } from '../git-manager.js';
 import { ProcessManager } from '../process-manager.js';
-import { requireField, optionalString, optionalEnum, VALID_STATUSES, VALID_PRIORITIES } from './validation.js';
+import { requireField, optionalString, optionalInt, optionalEnum, VALID_STATUSES, VALID_PRIORITIES } from './validation.js';
 
 export function createTaskRoutes(pm: ProcessManager): Router {
   const router = Router();
@@ -20,8 +20,14 @@ export function createTaskRoutes(pm: ProcessManager): Router {
       const description = optionalString(req.body, 'description') || '';
       const acceptanceCriteria = optionalString(req.body, 'acceptanceCriteria') || '';
       const priority = optionalEnum(req.body, 'priority', VALID_PRIORITIES, 'Priority') || 'normal';
-      const estimatedHours = Number(req.body.estimatedHours) || 1;
-      const dependencies = req.body.dependencies || [];
+      const estimatedHours = optionalInt(req.body, 'estimatedHours', 1, 100) ?? 1;
+
+      const rawDeps = req.body.dependencies;
+      if (rawDeps !== undefined && rawDeps !== null && !Array.isArray(rawDeps)) {
+        throw new Error('dependencies must be an array');
+      }
+      const dependencies = (Array.isArray(rawDeps) ? rawDeps : []) as unknown[];
+
       const id = uuid();
 
       db.prepare(`INSERT INTO tasks (id, projectId, title, description, acceptanceCriteria, priority, estimatedHours, dependencies)
@@ -37,14 +43,21 @@ export function createTaskRoutes(pm: ProcessManager): Router {
 
   router.patch('/:id', (req: Request, res: Response) => {
     try {
-      const { assignedTo, title, description, acceptanceCriteria, estimatedHours, analysisNotes, reviewNotes } = req.body;
-
-      // Validate optional enum fields
-      const status = optionalEnum(req.body, 'status', VALID_STATUSES, 'Status');
-      const priority = optionalEnum(req.body, 'priority', VALID_PRIORITIES, 'Priority');
-
       const task = db.prepare('SELECT * FROM tasks WHERE id = ?').get(req.params.id) as any;
       if (!task) return res.status(404).json({ error: 'Task not found' });
+
+      // Validate all fields
+      const status = optionalEnum(req.body, 'status', VALID_STATUSES, 'Status');
+      const priority = optionalEnum(req.body, 'priority', VALID_PRIORITIES, 'Priority');
+      const title = optionalString(req.body, 'title');
+      const description = optionalString(req.body, 'description');
+      const acceptanceCriteria = optionalString(req.body, 'acceptanceCriteria');
+      const analysisNotes = optionalString(req.body, 'analysisNotes');
+      const reviewNotes = optionalString(req.body, 'reviewNotes');
+      const estimatedHours = optionalInt(req.body, 'estimatedHours', 1, 100);
+
+      // assignedTo extracted directly (not via optionalString) to preserve null = unassign
+      const assignedTo = req.body.assignedTo !== undefined ? req.body.assignedTo : undefined;
 
       db.prepare(`UPDATE tasks SET
         status = ?, assignedTo = ?, title = ?, description = ?,
@@ -52,15 +65,15 @@ export function createTaskRoutes(pm: ProcessManager): Router {
         analysisNotes = ?, reviewNotes = ?
         WHERE id = ?`)
         .run(
-          status || task.status,
+          status ?? task.status,
           assignedTo !== undefined ? assignedTo : task.assignedTo,
-          title || task.title,
-          description || task.description,
-          acceptanceCriteria || task.acceptanceCriteria,
-          priority || task.priority,
-          estimatedHours || task.estimatedHours,
-          analysisNotes || task.analysisNotes,
-          reviewNotes || task.reviewNotes,
+          title ?? task.title,
+          description ?? task.description,
+          acceptanceCriteria ?? task.acceptanceCriteria,
+          priority ?? task.priority,
+          estimatedHours ?? task.estimatedHours,
+          analysisNotes ?? task.analysisNotes,
+          reviewNotes ?? task.reviewNotes,
           req.params.id
         );
 

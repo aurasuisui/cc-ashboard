@@ -9,7 +9,8 @@ export function requireField(body: Record<string, unknown>, field: string, label
 export function optionalString(body: Record<string, unknown>, field: string): string | undefined {
   const value = body[field];
   if (value === undefined || value === null) return undefined;
-  return String(value);
+  const trimmed = String(value).trim();
+  return trimmed || undefined;
 }
 
 export function optionalInt(
