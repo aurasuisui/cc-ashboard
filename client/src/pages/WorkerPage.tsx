@@ -2,14 +2,17 @@
 import { useState, useEffect } from 'react';
 import { useStore } from '../store';
 import { api } from '../api';
+import { useWebSocket } from '../hooks/useWebSocket';
 import WorkerTerminal from '../components/WorkerTerminal';
 
 export default function WorkerPage() {
-  const { workers, currentProjectId, tasks, setWorkers, updateTask } = useStore();
+  const { workers, currentProjectId, tasks, setWorkers } = useStore();
   const [selectedWorker, setSelectedWorker] = useState<string | null>(null);
-  const [workerLogs, setWorkerLogs] = useState<Record<string, string[]>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Activate WebSocket to receive worker output into store logLines
+  useWebSocket(currentProjectId);
 
   useEffect(() => {
     if (!currentProjectId) return;
@@ -28,6 +31,15 @@ export default function WorkerPage() {
   }, [currentProjectId]);
 
   const workerTask = (workerId: string) => tasks.find((t) => t.assignedTo === workerId);
+
+  // Get logs for selected worker from store (populated via WebSocket)
+  const selectedLogs = (() => {
+    if (!selectedWorker) return [];
+    const worker = workers.find((w) => w.id === selectedWorker);
+    if (!worker?.currentTaskId) return [];
+    const task = tasks.find((t) => t.id === worker.currentTaskId);
+    return task?.logLines || [];
+  })();
 
   if (loading) return <div style={{ padding: '40px', color: 'var(--text-secondary)' }}>加载中...</div>;
 
@@ -72,7 +84,7 @@ export default function WorkerPage() {
             <h3 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '12px' }}>
               {workers.find((w) => w.id === selectedWorker)?.name} · 实时输出
             </h3>
-            <WorkerTerminal logs={workerLogs[selectedWorker] || []} />
+            <WorkerTerminal logs={selectedLogs} />
           </>
         ) : (
           <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-secondary)' }}>
