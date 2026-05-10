@@ -9,18 +9,36 @@ export default function WorkerPage() {
   const [selectedWorker, setSelectedWorker] = useState<string | null>(null);
   const [workerLogs, setWorkerLogs] = useState<Record<string, string[]>>({});
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!currentProjectId) return;
-    api.getWorkers(currentProjectId).then((ws) => {
-      setWorkers(ws);
-      setLoading(false);
-    });
+    setLoading(true);
+    (async () => {
+      try {
+        const ws = await api.getWorkers(currentProjectId);
+        setWorkers(ws);
+        setError(null);
+      } catch (err) {
+        setError('无法加载员工列表: ' + (err as Error).message);
+      } finally {
+        setLoading(false);
+      }
+    })();
   }, [currentProjectId]);
 
   const workerTask = (workerId: string) => tasks.find((t) => t.assignedTo === workerId);
 
   if (loading) return <div style={{ padding: '40px', color: 'var(--text-secondary)' }}>加载中...</div>;
+
+  if (error) {
+    return (
+      <div style={{ padding: '12px 16px', background: '#fee2e2', color: '#dc2626', borderRadius: 6, margin: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span>{error}</span>
+        <button onClick={() => { setError(null); window.location.reload(); }} style={{ background: 'none', border: '1px solid #dc2626', color: '#dc2626', borderRadius: 4, padding: '4px 12px', cursor: 'pointer' }}>重试</button>
+      </div>
+    );
+  }
 
   return (
     <div style={{ padding: '24px', display: 'flex', gap: '24px', height: '100%' }}>

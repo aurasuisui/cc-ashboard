@@ -13,32 +13,50 @@ export default function KanbanPage() {
   const { tasks, currentProjectId, projects, setTasks, setCurrentProject, updateTask } = useStore();
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useWebSocket(currentProjectId);
 
   useEffect(() => {
-    api.getProjects().then((ps) => {
-      useStore.getState().setProjects(ps);
-      if (ps.length > 0 && !currentProjectId) {
-        setCurrentProject(ps[0].id);
+    (async () => {
+      try {
+        const ps = await api.getProjects();
+        useStore.getState().setProjects(ps);
+        if (ps.length > 0 && !currentProjectId) {
+          setCurrentProject(ps[0].id);
+        }
+        setError(null);
+      } catch (err) {
+        setError('无法加载项目列表: ' + (err as Error).message);
       }
-    });
+    })();
   }, []);
 
   useEffect(() => {
     if (!currentProjectId) return;
     setLoading(true);
-    api.getTasks(currentProjectId).then((ts) => {
-      setTasks(ts);
-      setLoading(false);
-    });
+    (async () => {
+      try {
+        const ts = await api.getTasks(currentProjectId);
+        setTasks(ts);
+        setError(null);
+      } catch (err) {
+        setError('无法加载任务: ' + (err as Error).message);
+      } finally {
+        setLoading(false);
+      }
+    })();
   }, [currentProjectId]);
 
   const handleDrop = async (taskId: string, newStatus: TaskStatus) => {
     const task = tasks.find((t) => t.id === taskId);
     if (!task || task.status === newStatus) return;
-    const updated = await api.updateTask(taskId, { status: newStatus });
-    updateTask(updated);
+    try {
+      const updated = await api.updateTask(taskId, { status: newStatus });
+      updateTask(updated);
+    } catch (err) {
+      setError('移动任务失败: ' + (err as Error).message);
+    }
   };
 
   const handleTaskUpdate = (updated: Task) => {
@@ -48,6 +66,15 @@ export default function KanbanPage() {
 
   if (loading) {
     return <div style={{ padding: '40px', color: 'var(--text-secondary)' }}>加载中...</div>;
+  }
+
+  if (error) {
+    return (
+      <div style={{ padding: '12px 16px', background: '#fee2e2', color: '#dc2626', borderRadius: 6, marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span>{error}</span>
+        <button onClick={() => { setError(null); window.location.reload(); }} style={{ background: 'none', border: '1px solid #dc2626', color: '#dc2626', borderRadius: 4, padding: '4px 12px', cursor: 'pointer' }}>重试</button>
+      </div>
+    );
   }
 
   if (!currentProjectId) {

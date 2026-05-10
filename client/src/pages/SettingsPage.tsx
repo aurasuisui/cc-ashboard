@@ -15,16 +15,21 @@ export default function SettingsPage() {
     workerCount: 2,
   });
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleCreate = async () => {
-    if (!form.name) return alert('请输入项目名称');
+    if (!form.name) {
+      setError('请输入项目名称');
+      return;
+    }
     setSaving(true);
+    setError(null);
     try {
       const project = await api.createProject(form);
       setCurrentProject(project.id);
       navigate('/');
     } catch (err: any) {
-      alert('创建失败: ' + err.message);
+      setError('创建失败: ' + err.message);
     } finally {
       setSaving(false);
     }
@@ -44,6 +49,12 @@ export default function SettingsPage() {
   return (
     <div style={{ padding: '40px', maxWidth: '560px', margin: '0 auto' }}>
       <h2 style={{ fontSize: '20px', fontWeight: 700, marginBottom: '24px' }}>创建新项目</h2>
+      {error && (
+        <div style={{ padding: '12px 16px', background: '#fee2e2', color: '#dc2626', borderRadius: 6, marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span>{error}</span>
+          <button onClick={() => setError(null)} style={{ background: 'none', border: '1px solid #dc2626', color: '#dc2626', borderRadius: 4, padding: '4px 12px', cursor: 'pointer' }}>关闭</button>
+        </div>
+      )}
       <div style={{ display: 'grid', gap: '16px' }}>
         <Field label="项目名称">
           <input style={fieldStyle} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="例如: 用户管理系统" />
