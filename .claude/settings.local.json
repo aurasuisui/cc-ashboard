@@ -10,7 +10,29 @@
       "Bash(npm install *)",
       "Bash(git init *)",
       "Bash(git -C \"C:\\\\Users\\\\aurasui\\\\Desktop\\\\MCPSkillinstall\" add -A)",
-      "Bash(git -C \"C:\\\\Users\\\\aurasui\\\\Desktop\\\\MCPSkillinstall\" commit -m \"chore: initialize monorepo root\")"
+      "Bash(git -C \"C:\\\\Users\\\\aurasui\\\\Desktop\\\\MCPSkillinstall\" commit -m \"chore: initialize monorepo root\")",
+      "Bash(git -C \"C:\\\\Users\\\\aurasui\\\\Desktop\\\\MCPSkillinstall\" log --oneline)",
+      "Bash(git -C \"C:\\\\Users\\\\aurasui\\\\Desktop\\\\MCPSkillinstall\" status)",
+      "Bash(git commit *)",
+      "Bash(git ls-tree *)",
+      "Bash(git add *)",
+      "Bash(git *)",
+      "PowerShell(New-Item *)",
+      "PowerShell(Get-Process *)",
+      "PowerShell(Get-NetTCPConnection *)",
+      "Bash(Start-Sleep -Seconds 8)",
+      "Bash(Get-Content \"C:\\\\Users\\\\aurasui\\\\Desktop\\\\MCPSkillinstall\\\\vite-output.log\" -ErrorAction SilentlyContinue)",
+      "PowerShell(Get-Job *)",
+      "Bash(npm ls *)",
+      "Bash(timeout 15 npm run dev)",
+      "Bash(netstat -ano)",
+      "Bash(Select-String -Pattern \"3001|5173\")",
+      "PowerShell(Stop-Process *)",
+      "Bash(npx tsx *)",
+      "Bash(curl -s http://localhost:3001/api/projects)",
+      "Bash(curl *)",
+      "Bash(npx -w client vite --port 5173)",
+      "Bash(npx kill-port *)"
     ]
   }
 }
