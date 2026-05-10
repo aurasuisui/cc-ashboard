@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { api } from '../api';
 import type { Task } from '../types';
 
@@ -11,6 +11,10 @@ interface Props {
 export default function TaskDetail({ task, onClose, onUpdate }: Props) {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState(task);
+
+  useEffect(() => {
+    setForm(task);
+  }, [task]);
 
   const statusLabels: Record<string, string> = {
     'todo': '待分析', 'analyzing': 'PM分析中', 'in-progress': '执行中', 'review': '待验收', 'merged': '已合并',
