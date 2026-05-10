@@ -43,3 +43,17 @@ const PORT = process.env.PORT || 3001;
 httpServer.listen(PORT, () => {
   console.log(`CC Dashboard running at http://localhost:${PORT}`);
 });
+
+function shutdown() {
+  console.log('Shutting down...');
+  for (const taskId of pm.getRunning()) {
+    pm.kill(taskId);
+  }
+  httpServer.close(() => {
+    console.log('Server closed');
+    process.exit(0);
+  });
+}
+
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);
