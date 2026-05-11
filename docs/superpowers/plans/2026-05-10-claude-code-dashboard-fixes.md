@@ -190,7 +190,7 @@ git commit -m "fix: add graceful shutdown to kill child processes"
 - Modify: `client/src/store.ts`
 - Modify: `client/src/types.ts`
 
-**问题:** `addLog` 直接拼接字符串没有换行符，且把日志存到 `reviewNotes`（字段语义错误）。
+**问题:** `addLog` 直接拼接字符串没有换行符，且把日志存到 `reviewNotes`（字段语义错误，`reviewNotes` 用于 PR 审查备注而非 worker 输出）。
 
 - [ ] **Step 1: 在 Task 类型中添加 logLines 字段**
 
@@ -219,27 +219,110 @@ git commit -m "fix: store worker logs in separate logLines array with proper sep
 
 ---
 
+### Task 6: 前端 API 调用添加错误处理
+
+**Files:**
+- Modify: `client/src/pages/KanbanPage.tsx`
+- Modify: `client/src/pages/WorkerPage.tsx`
+- Modify: `client/src/pages/SettingsPage.tsx`
+
+**问题:** 所有 API 调用（`api.getProjects()`、`api.getTasks()`、`api.getWorkers()` 等）使用 `.then()` 但无 `.catch()`。API 请求失败时 Promise rejection 未被处理，`loading` 状态永远为 `true`，页面永远显示"加载中..."，用户看不到任何错误提示且无法恢复操作。
+
+**涉及位置：**
+- `KanbanPage.tsx:20-25` — `api.getProjects()` 无 `.catch()`
+- `KanbanPage.tsx:28-34` — `api.getTasks()` 无 `.catch()`
+- `WorkerPage.tsx:15` — `api.getWorkers()` 无 `.catch()`
+- `SettingsPage.tsx` — 多处 API 调用无 `.catch()`
+
+- [ ] **Step 1: 封装 API 调用为 async/await + try-catch 模式**
+
+在 KanbanPage 中使用 `useEffect` 内的 async 函数：
+
+```typescript
+useEffect(() => {
+  (async () => {
+    try {
+      const ps = await api.getProjects();
+      useStore.getState().setProjects(ps);
+      if (ps.length > 0) setCurrentProject(ps[0].id);
+      setError(null);
+    } catch (err) {
+      setError('无法加载项目列表: ' + (err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  })();
+}, []);
+```
+
+- [ ] **Step 2: 添加错误状态和 UI 展示**
+
+每个页面添加 `error` state 和错误展示组件（如红色提示条 + 重试按钮）。
+
+- [ ] **Step 3: 对 WorkerPage 和 SettingsPage 做同样的修改**
+
+- [ ] **Step 4: 提交**
+
+```bash
+git add client/src/pages/
+git commit -m "fix: add error handling to all frontend API calls with retry UI"
+```
+
+---
+
+### Task 7: 修复 WebSocket worker-closed 数据破坏
+
+**Files:**
+- Modify: `client/src/hooks/useWebSocket.ts`
+
+**问题:** `useWebSocket.ts:26-28` 中 `worker-closed` 消息处理调用 `updateTask({ status: 'review', id: msg.taskId } as any)`。`store.ts` 的 `updateTask` 方法将整个 task 对象替换为传入的参数，导致 task 的 `title`、`description`、`priority`、`assignedTo` 等所有字段被擦除，看板上的任务卡片变为空白。
+
+- [ ] **Step 1: 修改 useWebSocket 中 worker-closed 的处理**
+
+只更新 status，不全量替换：
+
+```typescript
+// 方案 A: 添加一个只更新 status 的 store 方法
+setTaskStatus(taskId, 'review');
+
+// 方案 B (如果不想改 store): 从 store 获取当前 task，merge 后再 update
+const tasks = useStore.getState().tasks;
+const task = tasks.find(t => t.id === msg.taskId);
+if (task) {
+  updateTask({ ...task, status: 'review' });
+}
+```
+
+- [ ] **Step 2: 提交**
+
+```bash
+git add client/src/hooks/useWebSocket.ts client/src/store.ts
+git commit -m "fix: prevent worker-closed event from corrupting task data"
+```
+
+---
+
 ## 第二阶段：功能完善
 
-### Task 6: WorkerPage 终端接入 WebSocket
+### Task 8: WorkerPage 终端接入 WebSocket
 
 **Files:**
 - Modify: `client/src/pages/WorkerPage.tsx`
 - Modify: `client/src/hooks/useWebSocket.ts`
 
-**问题:** `workerLogs` 从未被填充，终端永远显示"等待输出..."。
+**问题:** WorkerPage 的 `workerLogs` 是本地 `useState<Record<string, string[]>>({})`，从未被填充。终端永远显示"等待输出..."。需要从 store 的 `logLines`（见 Task 5）获取日志。
 
-- [ ] **Step 1: 在 store 中提取日志信息**
+- [ ] **Step 1: 在 WorkerPage 中从 store 获取日志**
 
-在 WorkerPage 中，不再使用本地 `workerLogs` 状态，改为从 store 的 tasks 中按 worker 的 currentTaskId 查找对应的 `logLines`。
+在 WorkerPage 中，不再使用本地 `workerLogs` 状态，改为从 store 的 tasks 中按 worker 的 `currentTaskId` 查找对应的 `logLines`。
 
-- [ ] **Step 2: useWebSocket hook 中区分 worker output 来源**
+- [ ] **Step 2: 确保 useWebSocket 已在 WorkerPage 中激活**
 
-修改 `useWebSocket` 的 `worker-output` 分支，除了调用 `addLog` 外，让 WorkerPage 能感知到新日志到达（通过轮询 store 或增加一个 `lastLogUpdate` 时间戳）。
+将 `useWebSocket` hook 在 WorkerPage 中调用，或确保 `worker-output` 消息能更新 store（Task 5 已修复 `addLog`）。
 
-- [ ] **Step 3: WorkerPage 定期检查并展示日志**
+- [ ] **Step 3: WorkerPage 展示日志**
 
-在 WorkerPage 中，选中的 worker 对应的 task 的 `logLines` 自动展示在 WorkerTerminal 中。
+在 WorkerPage 中，选中 worker 对应的 task 的 `logLines` 自动展示在 WorkerTerminal 中。
 
 - [ ] **Step 4: 提交**
 
@@ -250,7 +333,7 @@ git commit -m "fix: wire worker terminal to WebSocket output via store logLines"
 
 ---
 
-### Task 7: 合并后捕获真实 commit hash
+### Task 9: 合并后捕获真实 commit hash
 
 **Files:**
 - Modify: `server/src/routes/tasks.ts`
@@ -282,12 +365,12 @@ git commit -m "fix: capture real git commit hash after merge"
 
 ---
 
-### Task 8: 任务重分配清除旧员工状态
+### Task 10: 任务重分配清除旧员工状态
 
 **Files:**
 - Modify: `server/src/routes/tasks.ts`
 
-**问题:** 任务从员工 A 改派给员工 B 时，员工 A 状态未清理。
+**问题:** 任务从员工 A 改派给员工 B 时，员工 A 状态和 `currentTaskId` 未清理，保持 `busy` 状态。
 
 - [ ] **Step 1: 在 PATCH 路由中处理重分配逻辑**
 
@@ -315,12 +398,12 @@ git commit -m "fix: clear previous worker status when reassigning task"
 
 ---
 
-### Task 9: CORS 限制 + 安全标记
+### Task 11: CORS 限制 + 安全标记
 
 **Files:**
 - Modify: `server/src/index.ts`
 
-**问题:** `cors()` 允许任意来源访问。
+**问题:** `cors()` 无任何参数，允许任意来源访问 API。
 
 - [ ] **Step 1: 限制 CORS 为开发环境**
 
@@ -341,14 +424,13 @@ git commit -m "fix: restrict CORS to development origins"
 
 ---
 
-### Task 10: 清理死代码和重复类型
+### Task 12: 清理死代码和重复类型
 
 **Files:**
 - Modify: `server/src/types.ts` (添加使用说明)
-- Modify: `server/src/ws-hub.ts` (保留 broadcastToWorker 以备后用)
 - Modify: `client/src/types.ts`
 
-**说明:** 此任务可选。`server/src/types.ts` 目前未被导入，可用作参考文档或在后续版本中接入。`broadcastToWorker` 方法为预留接口不删除。
+**说明:** `server/src/types.ts` 定义了类型但未被任何路由文件导入（路由中全部使用 `as any`），无 TypeScript 类型安全保障。
 
 - [ ] **Step 1: 在 server/src/types.ts 顶部添加注释**
 
@@ -358,20 +440,160 @@ git commit -m "fix: restrict CORS to development origins"
 // Future: integrate with Zod schemas for runtime validation.
 ```
 
+- [ ] **Step 2: 修复 ChatMessage 类型不一致**
+
+`server/src/types.ts` 中 ChatMessage 使用 `tasks?: Task[]`，但 `client/src/types.ts` 使用 `tasksJson: string | null`（匹配数据库列名）。统一两个类型定义，保持一致。
+
+- [ ] **Step 3: 提交**
+
+```bash
+git add server/src/types.ts client/src/types.ts
+git commit -m "docs: add usage notes to server type definitions, fix ChatMessage type mismatch"
+```
+
+---
+
+### Task 13: 修复 TaskDetail 切换任务时数据不更新
+
+**Files:**
+- Modify: `client/src/components/TaskDetail.tsx`
+
+**问题:** `TaskDetail.tsx:13` 使用 `useState(task)` 初始化表单数据。`useState` 的初始值仅在组件首次挂载时生效。当用户点击任务 A 切换到任务 B 时，`task` prop 变了但组件未重新挂载，`form` state 仍是任务 A 的数据。
+
+- [ ] **Step 1: 添加 useEffect 同步 task prop 变化**
+
+```typescript
+const [form, setForm] = useState(task);
+
+useEffect(() => {
+  setForm(task);
+}, [task]);
+```
+
 - [ ] **Step 2: 提交**
 
 ```bash
-git add server/src/types.ts
-git commit -m "docs: add usage notes to server type definitions"
+git add client/src/components/TaskDetail.tsx
+git commit -m "fix: sync TaskDetail form state when selected task changes"
+```
+
+---
+
+### Task 14: PMChatPage 接入后端
+
+**Files:**
+- Modify: `client/src/pages/PMChatPage.tsx`
+- Modify: `server/src/routes/` (新增 messages.ts)
+- Modify: `server/src/index.ts`
+
+**问题:**
+1. `PMChatPage.tsx:42-53` — PM 回复是硬编码的 `setTimeout` mock，消息无持久化
+2. 数据库有 `messages` 表但 server 端无 `/api/messages` 路由
+3. `client/src/types.ts` 和 `server/src/types.ts` 中 ChatMessage 字段名不一致（`tasks` vs `tasksJson`）
+
+- [ ] **Step 1: 创建 server 端 messages 路由**
+
+在 `server/src/routes/messages.ts` 中创建：
+- `GET /api/messages?projectId=` — 获取项目聊天记录
+- `POST /api/messages` — 发送新消息
+
+- [ ] **Step 2: 在 server/src/index.ts 注册 messages 路由**
+
+```typescript
+app.use('/api/messages', messagesRouter);
+```
+
+- [ ] **Step 3: 修改 PMChatPage 调用真实 API**
+
+将 `setTimeout` mock 替换为 `api.getMessages()` / `api.sendMessage()` 调用，消息持久化到数据库。
+
+- [ ] **Step 4: 提交**
+
+```bash
+git add server/src/routes/messages.ts server/src/index.ts client/src/pages/PMChatPage.tsx
+git commit -m "feat: wire PMChatPage to backend messages API with persistence"
+```
+
+---
+
+### Task 15: 持久化项目选择状态
+
+**Files:**
+- Modify: `client/src/store.ts`
+- Modify: `client/src/pages/KanbanPage.tsx`
+
+**问题:** `currentProjectId` 仅在内存中（Zustand），页面刷新后丢失。KanbanPage 每次加载都默认选第一个项目（`KanbanPage.tsx:22: setCurrentProject(ps[0].id)`）。如果用户有多个项目，始终无法切换到其他项目并保持选择。
+
+- [ ] **Step 1: 将 currentProjectId 持久化到 localStorage**
+
+在 store 中，项目切换时同步写入 `localStorage`；初始化时从 `localStorage` 读取。
+
+- [ ] **Step 2: 在 KanbanPage 中使用持久化的项目 ID**
+
+优先使用 `localStorage` 中保存的项目 ID，如果该 ID 对应的项目不存在则回退到第一个项目。
+
+- [ ] **Step 3: 提交**
+
+```bash
+git add client/src/store.ts client/src/pages/KanbanPage.tsx
+git commit -m "feat: persist selected project to localStorage across page refreshes"
+```
+
+---
+
+### Task 16: 修复 ChatMessage 类型不一致
+
+**Files:**
+- Modify: `server/src/types.ts`
+- Modify: `client/src/types.ts`
+- Modify: `client/src/components/ChatMessage.tsx`
+
+**问题:** 数据库列名为 `tasksJson`（TEXT），server 类型声明为 `tasks`，client 类型声明为 `tasksJson`。如果 server 端序列化消息，字段名会不匹配。需统一两端的类型定义。
+
+- [ ] **Step 1: 统一字段命名为 tasksJson**
+
+server 端 ChatMessage 接口的 `tasks?: Task[]` 改为 `tasksJson: string | null`（匹配数据库列名）。client 端保持不变（已匹配）。
+
+- [ ] **Step 2: 在 ChatMessage 组件中添加 JSON.parse 容错**
+
+```typescript
+try {
+  const tasks = JSON.parse(message.tasksJson || '[]');
+} catch {
+  // ignore parse errors
+}
+```
+
+- [ ] **Step 3: 提交**
+
+```bash
+git add server/src/types.ts client/src/types.ts client/src/components/ChatMessage.tsx
+git commit -m "fix: align ChatMessage types across server and client"
 ```
 
 ---
 
 ## 汇总
 
-| 阶段 | 任务 | 描述 | 优先级 |
-|------|------|------|--------|
-| 1 | 1-5 | 路径校验、输入校验、错误处理、优雅退出、logLines | 严重/必须 |
-| 2 | 6-10 | 终端接入、真实 hash、重分配清理、CORS、死代码 | 重要/建议 |
+| 阶段 | 任务 | 描述 | 严重程度 | 发现来源 |
+|------|------|------|----------|----------|
+| 1 | 1 | git-manager 路径校验防命令注入 | 严重/安全 | 代码审查 |
+| 1 | 2 | API 路由输入校验 | 严重/安全 | 代码审查 |
+| 1 | 3 | Express 错误处理中间件 | 严重/稳定 | 代码审查 |
+| 1 | 4 | 优雅退出（子进程清理） | 严重/稳定 | 代码审查 |
+| 1 | 5 | addLog 使用独立 logLines 字段 + 换行符 | 重要/正确性 | 代码审查 |
+| 1 | 6 | **前端 API 调用添加 .catch() 错误处理** | **严重/可用性** | **运行时发现** |
+| 1 | 7 | **WebSocket worker-closed 破坏 task 数据** | **严重/数据破坏** | **运行时发现** |
+| 2 | 8 | WorkerPage 终端接入 WebSocket | 重要/功能 | 代码审查 |
+| 2 | 9 | 合并后捕获真实 commit hash | 重要/可追溯 | 代码审查 |
+| 2 | 10 | 任务重分配清除旧员工状态 | 重要/一致性 | 代码审查 |
+| 2 | 11 | CORS 限制为开发环境 | 重要/安全 | 代码审查 |
+| 2 | 12 | 清理死代码 + 统一类型 | 建议/可维护 | 代码审查 |
+| 2 | 13 | **TaskDetail 切换任务时数据不更新** | **严重/正确性** | **运行时发现** |
+| 2 | 14 | **PMChatPage 接入后端 messages API** | **重要/功能** | **运行时发现** |
+| 2 | 15 | **项目选择状态持久化到 localStorage** | **建议/体验** | **运行时发现** |
+| 2 | 16 | **ChatMessage 类型不一致修复** | **重要/一致性** | **运行时发现** |
 
-**MVP 修复后状态:** 安全可用，终端和 PM 对话 WebSocket 数据通路完整，merge hash 真实可追溯。
+**新增问题（不在原始代码审查中）：** Task 6、7、13、14、15、16
+
+**MVP 修复后状态:** 安全可用，API 失败时有错误 UI 而非无限加载，WebSocket 数据不破坏任务，终端和 PM 对话 WebSocket 数据通路完整，merge hash 真实可追溯，任务切换正确渲染。
